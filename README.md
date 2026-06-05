@@ -1,6 +1,7 @@
-# Digital Jotter
+# Tiny Jotter
 
-NW-A306 (3.6インチ Walkman) 向けの超軽量メモ投稿ツール。  
+NW-A306 (3.6インチ Walkman) 等でも使える超軽量メモ投稿ツール。  
+（普通にスマホやPCブラウザからも使えます）  
 ブラウザでHTMLを開く → メモを書く → Discord に飛ぶ。  
 認証は Cloudflare Access (Zero Trust) のメール認証で保護。
 
@@ -19,7 +20,7 @@ functions/api/post.js   ← Cloudflare Pages Function（Discord Webhook 中継�
 git init
 git add .
 git commit -m "init"
-git remote add origin https://github.com/<YOUR_USER>/digital-jotter.git
+git remote add origin https://github.com/<YOUR_USER>/tiny-jotter.git
 git branch -M main
 git push -u origin main
 ```
