@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Jotter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0c;
+    --surface: #131318;
+    --border: #1e1e26;
+    --text: #e8e6e3;
+    --text-dim: #6b6a72;
+    --accent: #c4a35a;
+    --accent-glow: rgba(196, 163, 90, 0.15);
+    --success: #5ab87a;
+    --error: #d94f4f;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .char-count {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  /* ── Text area ── */
+  .textarea-wrap {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  textarea {
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    background: var(--surface);
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.65;
+    resize: none;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  textarea::placeholder {
+    color: var(--text-dim);
+  }
+
+  /* ── Bottom bar ── */
+  .bottom-bar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tag-input {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+    min-width: 0;
+  }
+
+  .tag-input:focus {
+    border-color: var(--accent);
+  }
+
+  .tag-input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .send-btn {
+    padding: 10px 20px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .send-btn:active {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+
+  .send-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    transform: none;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    padding: 14px 28px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 200;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .toast.success {
+    background: var(--success);
+    color: #0a0a0c;
+  }
+
+  .toast.error {
+    background: var(--error);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">Digital Jotter</span>
+  <span class="char-count" id="charCount">0</span>
+</div>
+
+<div class="textarea-wrap">
+  <textarea id="memo" placeholder="メモを入力…" autofocus></textarea>
+</div>
+
+<div class="bottom-bar">
+  <input class="tag-input" id="tagInput" type="text"
+         placeholder="#tag (任意)" maxlength="30">
+  <button class="send-btn" id="sendBtn" disabled>POST</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const memo     = document.getElementById('memo');
+  const tagInput = document.getElementById('tagInput');
+  const sendBtn  = document.getElementById('sendBtn');
+  const charCount = document.getElementById('charCount');
+  const toast    = document.getElementById('toast');
+
+  // ── Char counter ──
+  memo.addEventListener('input', () => {
+    const len = memo.value.length;
+    charCount.textContent = len;
+    sendBtn.disabled = len === 0;
+  });
+
+  // ── Toast ──
+  let toastTimer;
+  function showToast(msg, type) {
+    clearTimeout(toastTimer);
+    toast.textContent = msg;
+    toast.className = 'toast ' + type + ' show';
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  // ── Send ──
+  async function send() {
+    const text = memo.value.trim();
+    if (!text) return;
+
+    const tag = tagInput.value.trim();
+    sendBtn.disabled = true;
+    sendBtn.textContent = '…';
+
+    try {
+      const res = await fetch('/api/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, tag }),
+      });
+
+      if (!res.ok) throw new Error(res.statusText);
+
+      showToast('✓ 送信完了', 'success');
+      memo.value = '';
+      charCount.textContent = '0';
+    } catch (err) {
+      showToast('送信失敗', 'error');
+      console.error(err);
+    } finally {
+      sendBtn.textContent = 'POST';
+      sendBtn.disabled = memo.value.length === 0;
+    }
+  }
+
+  sendBtn.addEventListener('click', send);
+
+  // Ctrl+Enter / Cmd+Enter to send
+  memo.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      send();
+    }
+  });
+})();
+</script>
+</body>
+</html>
